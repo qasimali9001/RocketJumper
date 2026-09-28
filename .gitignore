@@ -1,0 +1,28 @@
+# Roblox place and model binaries. Source of truth is src/ plus ARCHITECTURE.md.
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
+
+# Studio lock files created while a place is open
+*.rbxl.lock
+*.rbxlx.lock
+*.rbxm.lock
+*.rbxmx.lock
+
+# Rojo build output
+sourcemap.json
+build/
+
+# Secrets and local credentials
+.env
+.env.*
+*.pem
+*.key
+credentials.json
+**/secrets.json
+
+# OS junk
+.DS_Store
+Thumbs.db
+desktop.ini

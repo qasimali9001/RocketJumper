@@ -1,0 +1,26 @@
+{
+  "name": "RocketJumper",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": {
+      "RocketJumper": {
+        "$className": "Folder",
+        "Shared": {
+          "$path": "src/shared"
+        }
+      }
+    },
+    "ServerScriptService": {
+      "RocketJumper": {
+        "$path": "src/server"
+      }
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "RocketJumper": {
+          "$path": "src/client"
+        }
+      }
+    }
+  }
+}
