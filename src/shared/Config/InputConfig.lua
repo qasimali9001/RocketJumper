@@ -7,5 +7,7 @@ return {
 	Right = { Enum.KeyCode.D, Enum.KeyCode.Right },
 	Jump = { Enum.KeyCode.Space },
 	Tune = { Enum.KeyCode.RightShift },
+	Reset = { Enum.KeyCode.R },
+	Cycle = { Enum.KeyCode.N },
 	JumpBuffer = 0.12,
 }

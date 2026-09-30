@@ -14,6 +14,8 @@ function InputController.new(config)
 	self._down = {}
 	self._jumpQueuedAt = nil
 	self._tuneQueued = false
+	self._resetQueued = false
+	self._cycleQueued = false
 	self._fireQueuedAt = nil
 	self._connections = {}
 	self._started = false
@@ -36,6 +38,8 @@ function InputController:start()
 		table.clear(self._down)
 		self._jumpQueuedAt = nil
 		self._tuneQueued = false
+		self._resetQueued = false
+		self._cycleQueued = false
 		self._fireQueuedAt = nil
 	end))
 end
@@ -81,6 +85,22 @@ function InputController:consumeTune()
 	return true
 end
 
+function InputController:consumeReset()
+	if not self._resetQueued then
+		return false
+	end
+	self._resetQueued = false
+	return true
+end
+
+function InputController:consumeCycle()
+	if not self._cycleQueued then
+		return false
+	end
+	self._cycleQueued = false
+	return true
+end
+
 function InputController:hasFire(maxAge)
 	if self._fireQueuedAt == nil then
 		return false
@@ -104,6 +124,8 @@ function InputController:destroy()
 	table.clear(self._down)
 	self._jumpQueuedAt = nil
 	self._tuneQueued = false
+	self._resetQueued = false
+	self._cycleQueued = false
 	self._fireQueuedAt = nil
 	self._started = false
 end
@@ -128,6 +150,12 @@ function InputController:_onBegan(input, _processed)
 	end
 	if self._config.Tune and self:_isListed(self._config.Tune, input.KeyCode) then
 		self._tuneQueued = true
+	end
+	if self._config.Reset and self:_isListed(self._config.Reset, input.KeyCode) then
+		self._resetQueued = true
+	end
+	if self._config.Cycle and self:_isListed(self._config.Cycle, input.KeyCode) then
+		self._cycleQueued = true
 	end
 end
 

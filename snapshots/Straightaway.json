@@ -1,0 +1,4 @@
+{
+  "note": "Straightaway as edited in Studio, taken before checkpoint and finish markers were added. Not loaded by the game. The same copy is ServerStorage.Maps.Straightaway_Snapshot. To restore, delete Workspace.Straightaway and clone that snapshot back into Workspace, then enable its Start spawn.",
+  "partCount": 25
+}

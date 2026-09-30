@@ -12,9 +12,13 @@ function Explosion.impulse(config, origin, targetPosition)
 		return Vector3.zero
 	end
 
+	-- Treat a nearby blast as this many studs lower than the impact. The rocket
+	-- still lands on the crosshair. A shot around the torso lifts the same way
+	-- while rising and while falling. 0 keeps the raw angle.
+	local biased = offset + Vector3.yAxis * (config.SelfUpBias or 0)
 	local direction = Vector3.yAxis
-	if distance > 0.05 then
-		direction = offset.Unit
+	if biased.Magnitude > 0.05 then
+		direction = biased.Unit
 	end
 
 	local falloff = 1 - (distance / config.ExplosionRadius)

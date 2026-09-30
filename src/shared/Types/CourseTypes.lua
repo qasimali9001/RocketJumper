@@ -1,5 +1,5 @@
 --!strict
--- Shapes the course and practice tools will pass around. No behavior.
+-- Shapes the course passes around. No behavior.
 
 export type MapDescriptor = {
 	id: string,
@@ -7,16 +7,14 @@ export type MapDescriptor = {
 	modelName: string,
 }
 
-export type Checkpoint = {
-	order: number,
-	cframe: CFrame,
+export type Target = {
+	id: string,
 }
 
-export type SaveState = {
-	position: Vector3,
-	velocity: Vector3,
-	yaw: number,
-	checkpointOrder: number,
+export type RunResult = {
+	elapsed: number,
+	cleared: number,
+	total: number,
 }
 
 return {}

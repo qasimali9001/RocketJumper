@@ -32,5 +32,9 @@ return {
 
 	GroundSkin = 0.45,
 	MinGroundNormalY = 0.7,
+	-- Speed along a wall removed per second while the body is flush with it.
+	-- Same units as GroundFriction. 0 leaves the slide. Higher kills a rocket
+	-- shove along the face sooner. A brush that is not flush is unchanged.
+	WallFriction = 8,
 	DtCap = 1 / 20,
 }

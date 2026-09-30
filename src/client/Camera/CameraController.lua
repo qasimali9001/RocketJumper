@@ -1,5 +1,6 @@
 -- First person, mouse lock, and local head visibility. Does not write velocity.
 
+local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -29,6 +30,9 @@ function CameraController:start()
 	self:_applyMode()
 	self._render = RunService.RenderStepped:Connect(function()
 		self:_applyMode()
+	end)
+	GuiService.MenuOpened:Connect(function()
+		UserInputService.MouseBehavior = Enum.MouseBehavior.Default
 	end)
 	if self._player.Character then
 		self:setCharacter(self._player.Character)
@@ -64,6 +68,9 @@ function CameraController:destroy()
 end
 
 function CameraController:_applyMode()
+	if GuiService.MenuIsOpen then
+		return
+	end
 	local config = self._config
 	local player = self._player
 	if config.LockFirstPerson then

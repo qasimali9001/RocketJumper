@@ -4,7 +4,9 @@ This is the reference for how Rocket Jumper is built. Read it before adding a fe
 
 Source of truth for code is this folder (`src/`), synced into Studio. Maps live in Studio as tagged models. Gameplay numbers live in config modules, not inside controllers.
 
-**Current stage:** Stage 2 — rocket on `FlatYard`. The blast adds to existing velocity. Timer and course rules are not in yet.
+**Current stage:** Stage 6 is in. `N` cycles `Serpentine` and `Pyramid`. Pyramid is the parts model from `tools/BuildPyramid.lua`: four flat rings, four 45° slopes at 75% scale, eight recessed targets, start on the south apron, finish on top. Stage 7 has started. The first slice is a first-person launcher, a rocket shape instead of the neon ball, and a music player. The Blender source is `export/Weapons.blend`. Mesh and audio upload are still blocked, so the in-game gun and rocket are parts matched to that file, and `AudioConfig.SoundId` stays empty until `TimeAttack1.mp3` can be uploaded.
+
+Play it before changing the route. Nudge parts in edit mode. The scripts do not rebuild the corridor.
 
 ---
 
@@ -12,11 +14,11 @@ Source of truth for code is this folder (`src/`), synced into Studio. Maps live 
 
 Every feature is a small class with one job. Orchestrators only create those classes and pass them to each other. They do not contain movement math, timer rules, or map parsing.
 
-1. **One concern per module.** A file owns movement, or rockets, or checkpoints, or the speed HUD. It does not own two of those.
+1. **One concern per module.** A file owns movement, or rockets, or the course run, or the speed HUD. It does not own two of those.
 2. **Orchestrators stay thin.** `ServerMain` and `ClientMain` wire modules. Domain rules live in the class that owns them.
 3. **No magic numbers in gameplay code.** Speeds, forces, cooldowns, UI layout, and keybinds live in `src/shared/Config/`. Tuning the feel means editing config, then playing, not hunting through controllers.
 4. **Small public APIs.** Each class exposes a short surface (`new`, `start`, `stop`, `destroy`, plus a few intentional methods). Callers do not reach into another module's fields.
-5. **Plain context in, plain results out.** Pass tables (position, velocity, map id, checkpoint index). Do not pass the whole game tree into a class that only needs a root part and a config table.
+5. **Plain context in, plain results out.** Pass tables (position, velocity, map id, target id). Do not pass the whole game tree into a class that only needs a root part and a config table.
 6. **Destroy what you create.** Every class that connects events, creates instances, or starts a loop implements `destroy` and is called when the character or map goes away.
 7. **A new map is data.** Adding a course means a model plus one registry line. It does not mean a new script.
 8. **Do not grow a god script.** If a file starts doing two jobs, split it before adding the next feature.
@@ -62,9 +64,10 @@ Air control is Source's `AirAccelerate` (`sv_airaccelerate` in TF2, CS:S, CS:GO,
 - In the air, the velocity you already have stays. Keys only add speed along the wish direction, and only until that component reaches `AirSpeedCap` (Source's 30-unit cap, in studs). A strafe plus a mouse turn bends the arc. Holding forward while you are already faster than the cap along your look does not steer: let go of W, hold A or D, and turn into the strafe.
 - Once you look far enough off your line that the speed along W drops under `AirSpeedCap`, that same shove points against the speed you already have. `AirBrake` is how much of that opposing shove is allowed to reduce speed. 1 is the full shove (`AirAccelerate` times `AirWishSpeed`). 0 keeps the speed. The start value is 0.2.
 - `AirAccelerate` is the turn knob. It is `sv_airaccelerate`. Higher changes direction faster. Lower locks the arc. CS2 and CS:GO use 12. TF2 and CS:S use 10. The current start value is 7.5, with `AirSpeedCap` at 7.5, about a quarter under the previous 10 so a strafe shoves less.
-- Right Shift opens the tune panels. The air sliders write `MovementConfig` live: `AirAccelerate`, `AirSpeedCap`, `AirWishSpeed`, `AirBrake`, `Gravity`, and `JumpSpeed`. Mouse sensitivity is on that panel. The rocket sliders sit on the right. Close the panels before looking around.
+- A wall removes only the speed aimed into it. While the body is flush with that face, `WallFriction` bleeds the speed still running along it. 0 leaves the slide. The start value is 8, in the same units as ground friction. A pass that is not flush keeps its speed. Ground movement does not use this bleed.
+- Right Shift opens the tune panels. The air sliders write `MovementConfig` live: `AirAccelerate`, `AirSpeedCap`, `AirWishSpeed`, `AirBrake`, `WallFriction`, `Gravity`, and `JumpSpeed`. Mouse sensitivity is on that panel. The rocket sliders sit on the right. Close the panels before looking around.
 - Jump adds vertical speed and keeps horizontal velocity. If a blast has already lifted you and your feet are still on the floor, that jump is added on top of the blast instead of being dropped.
-- Rocket knockback is added on top. It never replaces the current velocity. Right Shift opens a second panel that writes `RocketConfig` live: `ExplosionForce`, `ExplosionRadius`, `SelfForceMultiplier`, `RocketSpeed`, and `Cooldown`. Locked start values are force 150, radius 23, self multiplier 1.05, rocket speed 160, cooldown 0.7. Reset on that panel restores these.
+- Rocket knockback is added on top. It never replaces the current velocity. The rocket still lands on the crosshair. `SelfUpBias` reads a nearby blast as that many studs lower than the impact, so a shot around the torso lifts the same way while rising and while falling. The start value is 3. 0 keeps the raw angle. Right Shift opens a second panel that writes `RocketConfig` live: `ExplosionForce`, `ExplosionRadius`, `SelfForceMultiplier`, `SelfUpBias`, `RocketSpeed`, and `Cooldown`. Locked start values are force 150, radius 23, self multiplier 1.05, rocket speed 160, cooldown 0.7. Reset on that panel restores these.
 
 All of those rates live in `MovementConfig` and `RocketConfig`.
 
@@ -80,40 +83,71 @@ Toggles live in `CameraConfig`.
 
 ### Stage 1 test map
 
-`FlatYard` is a completely flat floor with vertical walls: a perimeter, a few interior walls (one of them rotated), and colored floor marks so speed is easy to read. No ramps and no kill volumes yet. It sits in `Workspace` until Stage 3 moves it to `ServerStorage/Maps` and the loader. The model contains no Script. `MapRegistry` already lists it so the promotion is a move, not a redesign.
+`FlatYard` is a completely flat floor with vertical walls: a perimeter, a few interior walls (one of them rotated), and colored floor marks so speed is easy to read. It now lives in `ServerStorage/Maps` so it is not under the first course. The model contains no Script. `MapRegistry` still lists it. Set `active = true` on that row and it clones back in.
 
 ### Who owns state
 
 | State | Owner | Why |
 |---|---|---|
 | Velocity, ground contact, air strafe | Client movement controller | Feel dies if a server round-trip sits in the middle of a strafe |
-| Rocket spawn and explosion impulse on the local player | Client, same simulation | The shot and the boost must be the same frame as the jump |
-| Checkpoint index, run timer, finish, kill resolution | Server session | Course rules stay consistent if we add other players later |
-| Practice savestate | Client only | A personal rewind, not a competitive record |
+| Rocket spawn, impact, and explosion impulse on the local player | Client, same simulation | The shot and the boost must be the same frame as the jump |
+| Which targets are cleared, whether the finish is open, run timer, reset | Server session | Course rules stay consistent if we add other players later |
 
-Stage 1–4 are built and felt in Studio play mode as a single player. The authority split is in the module boundaries from the start so a later multiplayer pass does not require a rewrite. We do not build DataStores, anti-cheat, or lobbies until the movement is fun.
+The client tells the server which target part the rocket hit. The server checks that the part is an uncleared `RJ_Target` on the active map and adds it to the set. In the solo loop we trust that report the same way we trust movement. Anti-cheat stays later.
+
+Stage 1 onward are built and felt in Studio play mode as a single player. The authority split is in the module boundaries from the start so a later multiplayer pass does not require a rewrite. We do not build DataStores, anti-cheat, or lobbies until a clear is fun to replay.
+
+### Levels are time trials
+
+The rocket and the air strafe stay as they are. A level is a short route you clear, then a clock you try to beat. From the start pad you can see the targets and the geometry that makes a rocket jump. Each level is one readable idea: a wall boost that also hits a plate, a vertical pop onto a high target, a chain of blasts across a gap. Geometry suggests the line. It does not lock you behind a jump you must survive.
+
+Targets sit where a good shot already wants to land. The rocket still flies to the crosshair and still explodes. If you are inside the blast you still get the shove. The same shot clears a target only when the projectile hits that target's part. One rocket, one target. A blast beside two plates clears the plate that was hit. The explosion radius does not clear anything else.
+
+Every target on the map is required. Order does not matter. When the last one is cleared, the finish opens. Touching the finish before that does nothing, and the clock keeps running. Touching it after the board is clear ends the run and stops the clock.
+
+The clock starts once, when you leave the start volume. Stepping back onto the pad does not restart it. A full reset does.
+
+A kill, a death, or the reset key all do the same thing. You return to the start with velocity cleared, every target restored, the finish closed, and the clock cleared. There is no checkpoint and no mid-route respawn.
+
+`Serpentine` is that first level: an enclosed S, five targets along the bends, finish near the end. Move the parts in Studio if a bend should match a sketch more closely. The scripts do not store the layout.
 
 ### Maps are a contract, not a script
 
-A map is a `Model` under `ServerStorage/Maps`. Geometry can look like anything. The course is a set of parts with CollectionService tags and attributes. `MapLoader` finds those parts. `CourseSession` interprets them. No map has its own Script.
+A map is a `Model` made of parts. Geometry can look like anything. The course is CollectionService tags and attributes on those parts. `MapLoader` finds them. `CourseSession` interprets them. No map has its own Script.
+
+While you are shaping a level, leave the model in `Workspace`. That is the copy you play. `MapLoader` does not clone it, so the parts you move are the parts you run. When the layout is settled, move the model to `ServerStorage/Maps`. If the active model is not in `Workspace`, the loader clones it from there at the start of a run.
+
+`src/shared/Config/MapRegistry.lua` lists id, display name, model name, and which row is `active`. A new map is: duplicate a model, retag volumes, add one registry row, play.
 
 | Tag | Role | Attributes |
 |---|---|---|
-| `RJ_Start` | Spawn, timer arms when you leave | `Facing` yaw optional; one per map |
-| `RJ_Checkpoint` | Ordered respawn | `Order` number, starting at 1 |
-| `RJ_Kill` | Touch sends you to the last checkpoint | none |
-| `RJ_Finish` | Stops the timer | none |
+| `RJ_Start` | Spawn. Leaving this volume starts the timer once | The part's front face is the facing |
+| `RJ_Target` | A rocket impact on this part clears it. One impact, one target | `Id` string, unique on the map |
+| `RJ_Kill` | Touch resets the run | none |
+| `RJ_Finish` | Ends the run only while every target is cleared. Before that, the touch is ignored | none |
 
-`src/shared/Config/MapRegistry.lua` lists id, display name, and model name. A new map is: duplicate a model, retag volumes, add one registry row, play.
+`RJ_Checkpoint` is retired. `MapLoader` does not read it. Old checkpoint parts in the place do nothing until the level is rebuilt.
 
-Respawn places the character on the checkpoint, upright, with velocity cleared, facing the volume's look vector. Saved practice states are the thing that restore velocity. A kill is a clean placement, so a bad bounce does not follow you to the pad.
+A reset places the character at the bottom of `RJ_Start`, upright, with velocity cleared, facing the part's front. Every target is restored and the finish closes. A tall gate still drops you on the floor under it. A kill is a clean placement, so a bad bounce does not follow you to the pad.
+
+The finish volume stays in the level the whole time. "Open" means the session starts accepting that touch. How the exit looks when it opens is part of the level, not a new script.
+
+`Serpentine` in Workspace is the course you play. `Straightaway` lives in `ServerStorage/Maps` as the old checkpoint layout. The place file is not in git.
+
+### Editing a level
+
+Stop the playtest before you move anything. Play mode is a copy, and moves made while it is running disappear when you stop. After you stop, move or scale the parts in the viewport or the Explorer, then press Play again. Nothing in the scripts rebuilds the corridor, so a nudge is not overwritten.
+
+Color is only a label. A red part does nothing until it has the `RJ_Kill` tag. Targets are copies of `ServerStorage.Templates.Target`: one sphere, with the same red, yellow, blue, and black face on the front and the back, and white as the band around the middle. Duplicate that model into the course, move the model, and set `Id` on its `RJ_Target` part to a unique string. The id is how the session tells targets apart. It is not an order. Only that invisible part is tagged and queryable, so a hit anywhere on the ball counts.
+
+The Studio place file stays out of git. Script changes live in this folder. Geometry stays in the open place until a model is exported on purpose.
 
 ### What “feels good” means before we leave Stage 2
 
 We do not start the course until all of these are true in an empty greybox:
 
 - Horizontal speed survives a normal jump.
-- Air strafing (hold A or D, turn the mouse into the strafe) changes your arc and holds speed. Holding only W in the air does not snap you to a new direction.
+- Turning the mouse in the air bends your arc and holds speed. Looking steeply down to fire does not spin that arc.
 - A rocket into the ground near your feet throws you up and forward without deleting the speed you already had.
 - Jump and fire in the same moment is reliable (short input buffer in config).
 - A speed number on screen matches what you feel. If the number and the camera disagree, the controller is wrong.
@@ -123,19 +157,21 @@ We do not start the course until all of these are true in an empty greybox:
 
 ## What else we need
 
-You listed propulsion, strafe, momentum, maps, timer, reset, practice tools, respawns, and kill zones. Those are the spine. These are the pieces that make that spine playable and maintainable:
+The spine is propulsion, strafe, momentum, targets, a finish that opens, a timer, and a full reset. These are the pieces that make that spine playable:
 
 - **Speed HUD.** A movement game without a speed readout cannot be tuned.
-- **Savestate / loadstate.** The real practice tool. Store position, velocity, camera yaw, and checkpoint index. Restore them on a key. Reset-to-start is a separate action and also clears the timer.
+- **Target count.** Cleared and total, so a run tells you what is left.
+- **Finish gate.** The exit is in the level from the start and accepts a touch only after every target is cleared.
+- **Timer.** Starts when you leave `RJ_Start`. Stops on a valid finish. A reset clears it.
+- **Full reset.** Kill, death, and the reset key share one action: start pad, targets restored, finish closed, clock cleared.
 - **Input buffer for rocket jump.** Jump and click rarely land on the same frame. A few tenths of a second of buffer is the difference between “skill” and “mush”.
-- **Explosion falloff.** Full force at the center, zero at the edge of the radius. Self-knockback can use its own multiplier so the jump is strong without sending other players (later) into orbit by accident.
+- **Explosion falloff.** Full force at the center, zero at the edge of the radius. Self-knockback can use its own multiplier so the jump is strong without sending other players (later) into orbit by accident. Falloff pushes the player. It does not clear a second target.
 - **Ground check we own.** A short ray under the root, not `Humanoid.FloorMaterial`, so ramps and launch pads behave the same every time.
-- **Finish volume.** The timer needs an end.
 - **One greybox map, then a second map.** The second map is the test that the pipeline works. If the second map needs a new script, the pipeline failed.
-- **Minimal rocket feedback.** A visible projectile, a short explosion, a sound. Satisfaction is partly audio and camera. FOV punch and shake come after the physics feel right, and they read numbers from config too.
-- **Keybinds in config.** Reset, respawn, save, load, and fire are not hard-coded in controllers.
+- **Minimal rocket feedback.** A visible projectile, a short explosion, a sound. A cleared target needs a visible change too. FOV punch and shake come after the physics feel right, and they read numbers from config too.
+- **Keybinds in config.** Reset and fire are not hard-coded in controllers.
 
-Explicitly later, not in the first playable loop: best-time DataStore, mobile controls, lobby, cosmetics, leaderboards, anti-cheat, custom animations.
+Explicitly later, not in the first playable loop: savestate / loadstate, best-time DataStore, mobile controls, lobby, cosmetics, leaderboards, anti-cheat, custom animations.
 
 ---
 
@@ -148,19 +184,23 @@ src/
     Config/
       MovementConfig.lua           -- ground, air, gravity, jump
       RocketConfig.lua             -- projectile, radius, force, cooldown, buffer
-      CourseConfig.lua             -- timer rules, respawn clearance
+      CourseConfig.lua             -- timer rules, reset clearance, target tag
       InputConfig.lua              -- keybinds
       CameraConfig.lua             -- first person, mouse lock, hide head
-      HudConfig.lua                -- speed HUD layout
+      HudConfig.lua                -- speed HUD, timer, target count
+      AudioConfig.lua              -- background track volume and id
+      ViewConfig.lua               -- first-person launcher offset and colors
       MapRegistry.lua              -- list of maps
     Types/
-      CourseTypes.lua              -- checkpoint, map descriptor, savestate shapes
+      CourseTypes.lua              -- target, map descriptor, run-result shapes
   server/
     ServerMain.server.lua          -- wires server classes, nothing else
     Map/
       MapLoader.lua                -- clone model, read tags, return a map object
     Course/
-      CourseSession.lua            -- per player: checkpoint, timer, kill, finish, reset
+      CourseSession.lua            -- per player: targets cleared, finish gate, timer, reset
+    Player/
+      RigGuard.lua                 -- stops a respawn from ragdolling; client still owns velocity
   client/
     ClientMain.client.lua          -- wires client classes, nothing else
     Input/
@@ -171,16 +211,21 @@ src/
       MovementController.lua       -- ground, air, gravity, writes velocity
       GroundProbe.lua              -- raycast ground contact
     Rocket/
-      RocketController.lua         -- fire, simulate local projectile, apply impulse
-      Explosion.lua                -- falloff and impulse from a point
+      RocketController.lua         -- fire, simulate local projectile, apply impulse, report the hit part
+      RocketView.lua               -- rocket shape. Does not change the shot
+      Explosion.lua                -- falloff and impulse from a point. Does not clear targets
+    View/
+      LauncherView.lua             -- first-person launcher on the camera. Does not write velocity
+    Audio/
+      MusicController.lua          -- loops the background track
     Course/
-      CourseController.lua         -- applies server respawn/reset; sends touches if needed
-      PracticeController.lua       -- savestate, loadstate, reset request
+      CourseController.lua         -- reports the hit target, applies reset, sends the reset key
     UI/
       SpeedHud.lua
       AirControlPanel.lua          -- live sliders for air strafe, rocket blast, and look sensitivity
       TimerHud.lua
-      PracticeHud.lua              -- savestate indicator, checkpoint index
+      TargetHud.lua                -- cleared / total
+      CourseBanner.lua             -- finish time
 ```
 
 Server map objects and client controllers talk through a single small remotes module (`src/shared/Net/CourseRemotes.lua`) created in Stage 3. Movement does not have a remote in the solo loop.
@@ -231,51 +276,62 @@ Character spawns on `FlatYard` in first person. WASD moves relative to the camer
 
 - Rocket jump off flat ground is repeatable.
 - Existing air speed is still there after the boost.
-- You can strafe during the launch and bend the arc.
+- You can turn the mouse during the launch and bend the arc without losing the speed.
 - Force, radius, rocket speed, and cooldown are config-only. Right Shift edits them live.
 
-### Stage 3 — One course
+### Stage 3 — Course shell (shipped, rules retired)
 
-`MapLoader`, `CourseSession`, `CourseController`, tags, and a single greybox map: start pad, two checkpoints, a gap with a kill volume, a finish. Touching a checkpoint updates the session. Touching kill or dying respawns at the last checkpoint with velocity cleared. Finish stops the run.
+`MapLoader`, `CourseSession`, `CourseController`, and `Straightaway` shipped with a start, checkpoints, a kill volume, and a finish. That checkpoint contract is retired. Do not add checkpoint behavior. The next stage replaces the run rules. The level itself is rebuilt after the code matches this document.
+
+### Stage 4 — Targets, finish gate, timer
+
+`MapLoader` reads `RJ_Target` and ignores `RJ_Checkpoint`. A rocket impact on a target clears that target only and hides the whole target until the run resets. `Explosion` still only pushes the player. When every target is cleared, `RJ_Finish` accepts a touch. The timer starts when you leave `RJ_Start` and stops on that touch. A kill and the reset key both perform a full reset.
 
 **Done when**
 
-- You can rocket jump the gap, die in the kill volume, and appear on the last pad.
-- Checkpoint order follows the `Order` attribute, not the order parts happen to sit in the model.
+- Shooting a target clears that one target. A blast next to two targets clears only the part the rocket hit.
+- A finish touch does nothing until the last target is cleared, then it ends the run and shows the time.
+- Leaving the start volume starts the timer once. Stepping back onto the pad does not restart it. A reset clears it.
+- A kill puts you on the start pad with every target restored, the finish closed, and the clock cleared.
+- The reset key does that same reset. The key comes from `InputConfig`.
 - The map model contains no Script.
 
-### Stage 4 — Timer and practice tools
+### Stage 5 — Rebuild the first level (shipped)
 
-Timer starts when you leave `RJ_Start` and stops on `RJ_Finish`. Reset key sends you to start and clears the timer. Respawn key sends you to the last checkpoint without clearing the timer (segment practice). Savestate / loadstate stores and restores position, velocity, yaw, and checkpoint index.
+`Serpentine` is that course. No target layout is fixed in this document. Adding it means tagged parts plus the existing registry row.
 
 **Done when**
 
-- A full run shows a stable time.
-- Reset and respawn do different things and both feel instant.
-- Loadstate puts you back on the same arc, including speed, not just the same pad.
-- Keys come from `InputConfig`.
+- From the start pad the targets and the rocket line are readable.
+- Every target is required, and the finish opens only after the last one.
+- A full clear shows a time. A death restarts the route.
+- The level adds no gameplay script.
 
-### Stage 5 — Prove maps are cheap
+### Stage 6 — Prove maps are cheap (shipped)
 
 Build a second small map. Register it. A simple cycle or menu picks the active map and reloads the session.
+
+`Pyramid` is that map. Studio has the parts model, shifted south of Serpentine. Four tiers, 45° faces at 75% scale, targets T1–T8 in alcoves sized to the targets, start southwest, finish at the top center. `tools/BuildPyramid.lua` rebuilds it. `N` cycles the maps that are already in Workspace, respawns you on that map's start, restores every target, and clears the clock. The registry row stays inactive; the cycle does not edit it.
 
 **Done when**
 
 - The second map ships with zero new gameplay scripts.
-- Switching maps respawns you on that map's start and clears the run.
+- Switching maps respawns you on that map's start, restores that map's targets, and clears the run.
 
-### Stage 6 — Feel polish
+### Stage 7 — Feel polish
 
-Camera FOV kick on large speed gains, brief explosion shake, rocket trail, better explosion. All magnitudes in config.
+In progress. The launcher and the flying rocket are parts matched to `export/Weapons.blend`. `MusicController` loops `AudioConfig.SoundId` and stays silent while that id is empty.
+
+Still to do, all magnitudes in config, none of it writing velocity: camera FOV kick on large speed gains, brief explosion shake, rocket trail, a stronger explosion, a fire sound, and clearer target-cleared feedback.
 
 **Done when**
 
 - Polish can be turned down to zero from config and the physics from Stage 2 are unchanged.
 - No polish code writes velocity.
 
-### Stage 7 — Save a best time (only after the above is fun)
+### Stage 8 — Save a best time (only after the above is fun)
 
-Per-map best time in a DataStore, shown next to the current timer. Still no lobby.
+Per-map best time in a DataStore, shown next to the current timer. Still no lobby. Savestate stays out until a clear is fun to replay.
 
 **Done when**
 

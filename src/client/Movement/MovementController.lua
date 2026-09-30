@@ -48,6 +48,21 @@ function MovementController:start(onSpeed)
 	end)
 end
 
+function MovementController:isActive()
+	return not self._destroyed and self._root ~= nil and self._root.Parent ~= nil
+end
+
+function MovementController:placeAt(cframe)
+	if self._destroyed or self._root == nil then
+		return
+	end
+	self._velocity = Vector3.zero
+	self._blastLift = false
+	self._root.AssemblyLinearVelocity = Vector3.zero
+	self._root.AssemblyAngularVelocity = Vector3.zero
+	self._root.CFrame = cframe
+end
+
 function MovementController:addImpulse(impulse)
 	if self._destroyed then
 		return
@@ -78,14 +93,16 @@ function MovementController:_claimRig()
 	humanoid.JumpPower = 0
 	humanoid.JumpHeight = 0
 	humanoid.UseJumpPower = true
-	pcall(function()
-		humanoid.EvaluateStateMachine = false
-	end)
+	humanoid.BreakJointsOnDeath = false
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.Jumping, false)
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.Climbing, false)
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.Swimming, false)
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.Ragdoll, false)
 	humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false)
+	humanoid:ChangeState(Enum.HumanoidStateType.Running)
+	pcall(function()
+		humanoid.EvaluateStateMachine = false
+	end)
 	self:_disableDefaultControls()
 end
 
@@ -148,7 +165,7 @@ function MovementController:_step(dt)
 		vertical = math.max(vertical, -config.MaxFallSpeed)
 	end
 
-	horizontal = self:_slideOnWalls(horizontal, dt)
+	horizontal = self:_slideOnWalls(horizontal, dt, not grounded)
 	self._velocity = Vector3.new(horizontal.X, vertical, horizontal.Z)
 	self:_placeRig(floorY, grounded)
 	root.AssemblyAngularVelocity = Vector3.zero
@@ -177,21 +194,80 @@ function MovementController:_placeRig(floorY, snapToFloor)
 	root.CFrame = CFrame.lookAt(origin, origin + look)
 end
 
-function MovementController:_slideOnWalls(horizontal, dt)
-	local speed = horizontal.Magnitude
-	if speed < 1 or self._wallParams == nil then
+function MovementController:_slideOnWalls(horizontal, dt, grip)
+	if self._wallParams == nil then
 		return horizontal
+	end
+	for _ = 1, 2 do
+		local normal = self:_blockingNormal(horizontal, dt)
+		if normal == nil then
+			break
+		end
+		local intoWall = horizontal:Dot(normal)
+		if intoWall >= 0 then
+			break
+		end
+		horizontal -= normal * intoWall
+	end
+	if grip and self:_flushNormal() ~= nil then
+		horizontal = self:_applyWallFriction(horizontal, dt)
+	end
+	return horizontal
+end
+
+function MovementController:_flatWallNormal(result)
+	if result == nil or result.Normal.Y >= self._config.MinGroundNormalY then
+		return nil
+	end
+	local flat = Vector3.new(result.Normal.X, 0, result.Normal.Z)
+	if flat.Magnitude < 0.001 then
+		return nil
+	end
+	return flat.Unit
+end
+
+function MovementController:_blockingNormal(horizontal, dt)
+	local speed = horizontal.Magnitude
+	if speed < 1 then
+		return nil
 	end
 	local reach = self._root.Size.X * 0.5 + speed * dt + self._config.GroundSkin
 	local result = workspace:Raycast(self._root.Position, horizontal.Unit * reach, self._wallParams)
-	if result == nil or result.Normal.Y >= self._config.MinGroundNormalY then
-		return horizontal
+	local normal = self:_flatWallNormal(result)
+	if normal == nil or horizontal:Dot(normal) >= 0 then
+		return nil
 	end
-	local intoWall = horizontal:Dot(result.Normal)
-	if intoWall < 0 then
-		return horizontal - result.Normal * intoWall
+	return normal
+end
+
+function MovementController:_flushNormal()
+	local reach = self._root.Size.X * 0.5 + self._config.GroundSkin
+	local dirs = {
+		Vector3.xAxis,
+		-Vector3.xAxis,
+		Vector3.zAxis,
+		-Vector3.zAxis,
+	}
+	for _, dir in dirs do
+		local result = workspace:Raycast(self._root.Position, dir * reach, self._wallParams)
+		local normal = self:_flatWallNormal(result)
+		if normal ~= nil and dir:Dot(normal) < 0 then
+			return normal
+		end
 	end
-	return horizontal
+	return nil
+end
+
+function MovementController:_applyWallFriction(horizontal, dt)
+	local speed = horizontal.Magnitude
+	if speed < 0.1 then
+		return Vector3.zero
+	end
+	local config = self._config
+	local control = math.max(speed, config.StopSpeed)
+	local drop = control * config.WallFriction * dt
+	local newSpeed = math.max(speed - drop, 0)
+	return horizontal * (newSpeed / speed)
 end
 
 function MovementController:_wishDirection(axisX, axisZ)

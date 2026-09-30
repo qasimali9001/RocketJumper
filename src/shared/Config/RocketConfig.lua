@@ -11,6 +11,9 @@ return {
 	ExplosionRadius = 23,
 	ExplosionForce = 150,
 	SelfForceMultiplier = 1.05,
+	-- Studs. Added to the self-push only, so the blast is read as lower than
+	-- the impact. 0 is the raw angle. The rocket still hits the crosshair.
+	SelfUpBias = 3,
 	BurstTime = 0.22,
 	BurstColor = Color3.fromRGB(255, 196, 90),
 	ExplosionSoundId = "rbxassetid://269146157",

@@ -70,6 +70,15 @@ return {
 				source = "movement",
 			},
 			{
+				id = "WallFriction",
+				label = "Wall friction",
+				detail = "Speed lost while flush with a wall. 0 is ice.",
+				min = 0,
+				max = 24,
+				step = 0.5,
+				source = "movement",
+			},
+			{
 				id = "Gravity",
 				label = "Gravity",
 				detail = "Air time. Higher falls faster.",
@@ -149,6 +158,15 @@ return {
 				source = "rocket",
 			},
 			{
+				id = "SelfUpBias",
+				label = "Upward bias",
+				detail = "Lift from a blast near you. 0 is the raw angle.",
+				min = 0,
+				max = 8,
+				step = 0.25,
+				source = "rocket",
+			},
+			{
 				id = "RocketSpeed",
 				label = "Rocket speed",
 				detail = "How fast the shot travels.",
@@ -167,5 +185,32 @@ return {
 				source = "rocket",
 			},
 		},
+	},
+
+	Timer = {
+		Position = UDim2.fromScale(0.5, 0.03),
+		TextSize = 36,
+		Font = Enum.Font.GothamBold,
+		Color = Color3.fromRGB(255, 255, 255),
+	},
+
+	TargetCount = {
+		Position = UDim2.fromScale(0.5, 0.085),
+		TextSize = 22,
+		HintSize = 14,
+		Font = Enum.Font.GothamBold,
+		Color = Color3.fromRGB(186, 230, 186),
+		OpenColor = Color3.fromRGB(120, 255, 170),
+		HintColor = Color3.fromRGB(176, 182, 192),
+		Hint = "R resets the run. N next map",
+	},
+
+	CourseBanner = {
+		Position = UDim2.fromScale(0.5, 0.18),
+		TextSize = 42,
+		Font = Enum.Font.GothamBold,
+		Color = Color3.fromRGB(190, 255, 210),
+		Text = "0.00",
+		Seconds = 2.5,
 	},
 }

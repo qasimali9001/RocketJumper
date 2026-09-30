@@ -5,16 +5,18 @@ local RunService = game:GetService("RunService")
 
 local Class = require(ReplicatedStorage:WaitForChild("RocketJumper"):WaitForChild("Shared"):WaitForChild("Class"))
 local Explosion = require(script.Parent.Explosion)
+local RocketView = require(script.Parent.RocketView)
 
 local RocketController = {}
 RocketController.__index = RocketController
 
-function RocketController.new(config, input, movement, character)
+function RocketController.new(config, input, movement, character, onImpact)
 	local self = Class.instance(RocketController)
 	self._config = config
 	self._input = input
 	self._movement = movement
 	self._character = character
+	self._onImpact = onImpact
 	self._rockets = {}
 	self._nextFireAt = 0
 	self._heartbeat = nil
@@ -39,8 +41,8 @@ function RocketController:destroy()
 		self._heartbeat = nil
 	end
 	for _, rocket in self._rockets do
-		if rocket.part then
-			rocket.part:Destroy()
+		if rocket.model then
+			rocket.model:Destroy()
 		end
 	end
 	table.clear(self._rockets)
@@ -59,14 +61,17 @@ function RocketController:_step(dt)
 		local hit = workspace:Raycast(rocket.position, displacement, self._params)
 		if hit then
 			self:_detonate(hit.Position)
-			rocket.part:Destroy()
+			if self._onImpact then
+				self._onImpact(hit.Instance)
+			end
+			rocket.model:Destroy()
 			table.remove(self._rockets, index)
 		else
 			rocket.position += displacement
 			rocket.age += dt
-			rocket.part.CFrame = CFrame.lookAt(rocket.position, rocket.position + rocket.velocity)
+			rocket.model:PivotTo(CFrame.lookAt(rocket.position, rocket.position + rocket.velocity))
 			if rocket.age >= self._config.MaxLifetime then
-				rocket.part:Destroy()
+				rocket.model:Destroy()
 				table.remove(self._rockets, index)
 			end
 		end
@@ -95,21 +100,11 @@ function RocketController:_launch()
 	local look = camera.CFrame.LookVector
 	local origin = camera.CFrame.Position + look * config.SpawnForward
 
-	local part = Instance.new("Part")
-	part.Name = "Rocket"
-	part.Shape = Enum.PartType.Ball
-	part.Size = Vector3.new(config.RocketSize, config.RocketSize, config.RocketSize)
-	part.Color = config.RocketColor
-	part.Material = Enum.Material.Neon
-	part.Anchored = true
-	part.CanCollide = false
-	part.CanQuery = false
-	part.CanTouch = false
-	part.CFrame = CFrame.lookAt(origin, origin + look)
-	part.Parent = workspace
+	local model = RocketView.create(config)
+	model:PivotTo(CFrame.lookAt(origin, origin + look))
 
 	table.insert(self._rockets, {
-		part = part,
+		model = model,
 		position = origin,
 		velocity = look * config.RocketSpeed,
 		age = 0,
