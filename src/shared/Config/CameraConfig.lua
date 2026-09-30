@@ -1,4 +1,4 @@
--- First-person camera claim. FOV punch is Stage 6 and does not belong here yet.
+-- First-person camera claim. Speed field of view and shake live in PolishConfig.
 
 return {
 	LockFirstPerson = true,

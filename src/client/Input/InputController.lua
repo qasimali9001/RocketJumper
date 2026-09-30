@@ -17,6 +17,7 @@ function InputController.new(config)
 	self._resetQueued = false
 	self._cycleQueued = false
 	self._fireQueuedAt = nil
+	self._blocked = false
 	self._connections = {}
 	self._started = false
 	return self
@@ -42,6 +43,18 @@ function InputController:start()
 		self._cycleQueued = false
 		self._fireQueuedAt = nil
 	end))
+end
+
+function InputController:setBlocked(blocked)
+	self._blocked = blocked == true
+	if self._blocked then
+		table.clear(self._down)
+		self._jumpQueuedAt = nil
+		self._tuneQueued = false
+		self._resetQueued = false
+		self._cycleQueued = false
+		self._fireQueuedAt = nil
+	end
 end
 
 function InputController:getMoveAxes()
@@ -131,6 +144,9 @@ function InputController:destroy()
 end
 
 function InputController:_onBegan(input, _processed)
+	if self._blocked then
+		return
+	end
 	if input.UserInputType == Enum.UserInputType.MouseButton1 then
 		if UserInputService.MouseBehavior ~= Enum.MouseBehavior.LockCenter then
 			return

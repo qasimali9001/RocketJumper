@@ -10,13 +10,14 @@ local RocketView = require(script.Parent.RocketView)
 local RocketController = {}
 RocketController.__index = RocketController
 
-function RocketController.new(config, input, movement, character, onImpact)
+function RocketController.new(config, input, movement, character, onImpact, effects)
 	local self = Class.instance(RocketController)
 	self._config = config
 	self._input = input
 	self._movement = movement
 	self._character = character
 	self._onImpact = onImpact
+	self._effects = effects or {}
 	self._rockets = {}
 	self._nextFireAt = 0
 	self._heartbeat = nil
@@ -88,6 +89,16 @@ function RocketController:_tryFire()
 	end
 	self._input:consumeFire()
 	self._nextFireAt = os.clock() + config.Cooldown
+	local effects = self._effects
+	if effects.sfx then
+		effects.sfx:play("Fire")
+	end
+	if effects.camera then
+		effects.camera:kick()
+	end
+	if effects.launcher then
+		effects.launcher:flash()
+	end
 	self:_launch()
 end
 
@@ -100,7 +111,7 @@ function RocketController:_launch()
 	local look = camera.CFrame.LookVector
 	local origin = camera.CFrame.Position + look * config.SpawnForward
 
-	local model = RocketView.create(config)
+	local model = RocketView.create(config, self._effects.trail)
 	model:PivotTo(CFrame.lookAt(origin, origin + look))
 
 	table.insert(self._rockets, {
@@ -117,7 +128,20 @@ function RocketController:_detonate(position)
 		local impulse = Explosion.impulse(self._config, position, root.Position)
 		self._movement:addImpulse(impulse)
 	end
-	Explosion.burst(self._config, position)
+	local effects = self._effects
+	if effects.camera and root then
+		local distance = (root.Position - position).Magnitude
+		local radius = self._config.ExplosionRadius
+		local strength = 0
+		if radius > 0 then
+			strength = 1 - math.clamp(distance / radius, 0, 1)
+		end
+		effects.camera:shake(strength)
+	end
+	Explosion.burst(self._config, effects.burst, position)
+	if effects.sfx then
+		effects.sfx:play("Explosion")
+	end
 end
 
 return RocketController

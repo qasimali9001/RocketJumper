@@ -25,6 +25,8 @@ function CourseSession.new(map, config, respawnRemote, courseRemote, targetHitRe
 	self._lock = {}
 	self._connections = {}
 	self._mapName = ""
+	self._mapId = ""
+	self._times = nil
 	self._total = #map.targets
 	for _, target in map.targets do
 		self._targetParts[target.id] = target.part
@@ -35,6 +37,31 @@ end
 
 function CourseSession:setMapName(name)
 	self._mapName = name
+end
+
+function CourseSession:setMapId(mapId)
+	self._mapId = mapId
+end
+
+function CourseSession:setTimes(times)
+	self._times = times
+end
+
+function CourseSession:setPaused(player, paused)
+	local state = self._state[player]
+	if state == nil or state.finished or paused == state.paused then
+		return
+	end
+	state.paused = paused
+	if paused then
+		if state.timerStart then
+			state.elapsed = workspace:GetServerTimeNow() - state.timerStart
+			state.timerStart = nil
+		end
+	elseif state.timerStarted then
+		state.timerStart = workspace:GetServerTimeNow() - state.elapsed
+	end
+	self._course:FireClient(player, self:_payload(player, "timer"))
 end
 
 function CourseSession:announce(kind)
@@ -117,6 +144,7 @@ function CourseSession:_beginRun(player)
 	self:_applyGate(false)
 	self:_spawn(player)
 	self._course:FireClient(player, self:_payload(player, "reset"))
+	self:_publishBoard(player)
 end
 
 function CourseSession:_fresh()
@@ -128,10 +156,11 @@ function CourseSession:_fresh()
 		armed = false,
 		finished = false,
 		elapsed = 0,
+		paused = false,
 	}
 end
 
-function CourseSession:_payload(player, kind)
+function CourseSession:_payload(player, kind, record)
 	local state = self._state[player]
 	local ids = {}
 	if state then
@@ -149,7 +178,24 @@ function CourseSession:_payload(player, kind)
 		elapsed = state and state.elapsed or 0,
 		clearedIds = ids,
 		mapName = self._mapName,
+		personalBest = record and record.personalSeconds or nil,
+		improved = record ~= nil and record.improved == true,
+		board = record and record.board or nil,
 	}
+end
+
+function CourseSession:_publishBoard(player)
+	local times = self._times
+	local mapId = self._mapId
+	if times == nil or mapId == "" then
+		return
+	end
+	task.spawn(function()
+		local record = times:read(player, mapId)
+		if player.Parent ~= nil then
+			self._course:FireClient(player, self:_payload(player, "board", record))
+		end
+	end)
 end
 
 function CourseSession:_bind(parts, handler)
@@ -176,7 +222,7 @@ function CourseSession:_onTargetHit(player, id)
 		return
 	end
 	local state = self._state[player]
-	if state == nil or state.finished then
+	if state == nil or state.finished or state.paused then
 		return
 	end
 	if self._targetParts[id] == nil or state.cleared[id] then
@@ -213,7 +259,7 @@ end
 
 function CourseSession:_onFinish(player)
 	local state = self._state[player]
-	if state == nil or state.finished then
+	if state == nil or state.finished or state.paused then
 		return
 	end
 	if self._total == 0 or state.clearedCount < self._total then
@@ -224,7 +270,11 @@ function CourseSession:_onFinish(player)
 	if state.timerStart then
 		state.elapsed = workspace:GetServerTimeNow() - state.timerStart
 	end
-	self._course:FireClient(player, self:_payload(player, "finish"))
+	local record = nil
+	if self._times and self._mapId ~= "" then
+		record = self._times:submit(player, self._mapId, state.elapsed)
+	end
+	self._course:FireClient(player, self:_payload(player, "finish", record))
 end
 
 function CourseSession:_resetPlayer(player)
@@ -255,7 +305,7 @@ function CourseSession:_watchStarts()
 		return
 	end
 	for player, state in self._state do
-		if state.timerStarted or state.finished then
+		if state.timerStarted or state.finished or state.paused then
 			continue
 		end
 		local character = player.Character

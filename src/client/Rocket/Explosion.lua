@@ -26,34 +26,79 @@ function Explosion.impulse(config, origin, targetPosition)
 	return direction * strength
 end
 
-function Explosion.burst(config, position)
-	local ball = Instance.new("Part")
-	ball.Name = "RocketBurst"
-	ball.Shape = Enum.PartType.Ball
-	ball.Anchored = true
-	ball.CanCollide = false
-	ball.CanQuery = false
-	ball.CanTouch = false
-	ball.Material = Enum.Material.Neon
-	ball.Color = config.BurstColor
-	ball.Size = Vector3.new(1, 1, 1)
-	ball.CFrame = CFrame.new(position)
-	ball.Parent = workspace
+local function ghost(name, shape, size, cframe, color)
+	local part = Instance.new("Part")
+	part.Name = name
+	part.Shape = shape
+	part.Size = size
+	part.CFrame = cframe
+	part.Color = color
+	part.Material = Enum.Material.Neon
+	part.Anchored = true
+	part.CanCollide = false
+	part.CanQuery = false
+	part.CanTouch = false
+	part.CastShadow = false
+	part.Parent = workspace
+	return part
+end
 
-	local sound = Instance.new("Sound")
-	sound.SoundId = config.ExplosionSoundId
-	sound.Volume = 0.7
-	sound.RollOffMaxDistance = 180
-	sound.Parent = ball
-	sound:Play()
-
-	local diameter = config.ExplosionRadius * 0.85
-	local tween = TweenService:Create(ball, TweenInfo.new(config.BurstTime, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Size = Vector3.new(diameter, diameter, diameter),
-		Transparency = 1,
-	})
+local function fade(part, time, goal)
+	if time <= 0 then
+		part:Destroy()
+		return
+	end
+	local tween = TweenService:Create(part, TweenInfo.new(time, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), goal)
 	tween:Play()
-	Debris:AddItem(ball, config.BurstTime + 0.05)
+	Debris:AddItem(part, time + 0.05)
+end
+
+function Explosion.burst(config, burst, position)
+	if burst == nil or not burst.Enabled then
+		return
+	end
+	local radius = config.ExplosionRadius
+	if burst.CoreTime > 0 then
+		local core = ghost("RocketCore", Enum.PartType.Ball, Vector3.new(1.4, 1.4, 1.4), CFrame.new(position), burst.CoreColor)
+		local diameter = math.max(2, radius * 0.42)
+		fade(core, burst.CoreTime, {
+			Size = Vector3.new(diameter, diameter, diameter),
+			Transparency = 1,
+		})
+	end
+	if burst.RingTime > 0 then
+		local ring = ghost(
+			"RocketRing",
+			Enum.PartType.Cylinder,
+			Vector3.new(0.28, 1.6, 1.6),
+			CFrame.new(position) * CFrame.Angles(0, 0, math.rad(90)),
+			burst.RingColor
+		)
+		ring.Transparency = 0.25
+		local diameter = math.max(4, radius * 1.6)
+		fade(ring, burst.RingTime, {
+			Size = Vector3.new(0.16, diameter, diameter),
+			Transparency = 1,
+		})
+	end
+	local count = burst.SparkCount or 0
+	if burst.SparkTime > 0 and count > 0 then
+		local travel = math.max(4, radius * 0.55)
+		for _ = 1, count do
+			local direction = Vector3.new(math.random() - 0.5, math.random() - 0.5, math.random() - 0.5)
+			if direction.Magnitude < 0.05 then
+				direction = Vector3.yAxis
+			else
+				direction = direction.Unit
+			end
+			local spark = ghost("RocketSpark", Enum.PartType.Ball, Vector3.new(0.45, 0.45, 0.45), CFrame.new(position), burst.SparkColor)
+			fade(spark, burst.SparkTime, {
+				Position = position + direction * travel,
+				Size = Vector3.new(0.08, 0.08, 0.08),
+				Transparency = 1,
+			})
+		end
+	end
 end
 
 return Explosion

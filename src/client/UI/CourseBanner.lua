@@ -49,7 +49,12 @@ function CourseBanner:start()
 			return
 		end
 		if payload.kind == "finish" then
-			self:_show(string.format("%.2f", math.max(0, tonumber(payload.elapsed) or 0)))
+			local seconds = math.max(0, tonumber(payload.elapsed) or 0)
+			local text = string.format("%.2f", seconds)
+			if payload.improved then
+				text = "NEW BEST  " .. text
+			end
+			self:_show(text)
 		elseif payload.kind == "map" and typeof(payload.mapName) == "string" then
 			self:_show(payload.mapName)
 		end

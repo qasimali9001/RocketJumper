@@ -25,6 +25,7 @@ function MovementController.new(config, character, input)
 	self._died = nil
 	self._destroyed = false
 	self._blastLift = false
+	self._held = false
 	return self
 end
 
@@ -61,6 +62,10 @@ function MovementController:placeAt(cframe)
 	self._root.AssemblyLinearVelocity = Vector3.zero
 	self._root.AssemblyAngularVelocity = Vector3.zero
 	self._root.CFrame = cframe
+end
+
+function MovementController:setHeld(held)
+	self._held = held == true
 end
 
 function MovementController:addImpulse(impulse)
@@ -126,6 +131,11 @@ function MovementController:_step(dt)
 	local root = self._root
 	local humanoid = self._humanoid
 	if root == nil or humanoid == nil or humanoid.Health <= 0 then
+		return
+	end
+	if self._held then
+		root.AssemblyAngularVelocity = Vector3.zero
+		root.AssemblyLinearVelocity = self._velocity
 		return
 	end
 

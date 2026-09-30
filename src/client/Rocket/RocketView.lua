@@ -36,13 +36,48 @@ local function box(model, name, size, center, color)
 	return part
 end
 
-function RocketView.create(config)
+local function attachTrail(body, trail)
+	if trail == nil or not trail.Enabled or trail.Lifetime <= 0 then
+		return
+	end
+	local function point(name, offset)
+		local attachment = Instance.new("Attachment")
+		attachment.Name = name
+		attachment.Position = offset
+		attachment.Parent = body
+		return attachment
+	end
+	-- Body local -X is the nozzle. The two points sit across the flame so the ribbon has width.
+	local back = point("Trail0", Vector3.new(-0.32, 0.22, 0))
+	local front = point("Trail1", Vector3.new(-0.32, -0.22, 0))
+	local ribbon = Instance.new("Trail")
+	ribbon.Name = "Flame"
+	ribbon.Attachment0 = back
+	ribbon.Attachment1 = front
+	ribbon.Lifetime = trail.Lifetime
+	ribbon.MinLength = 0.05
+	ribbon.FaceCamera = true
+	ribbon.LightEmission = 0.75
+	ribbon.WidthScale = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 1),
+		NumberSequenceKeypoint.new(1, 0.15),
+	})
+	ribbon.Transparency = NumberSequence.new({
+		NumberSequenceKeypoint.new(0, 0.15),
+		NumberSequenceKeypoint.new(1, 1),
+	})
+	ribbon.Color = ColorSequence.new(trail.Color, trail.TailColor)
+	ribbon.Parent = body
+end
+
+function RocketView.create(config, trail)
 	local model = Instance.new("Model")
 	model.Name = "Rocket"
-	local body = config.RocketColor
+	local bodyColor = config.RocketColor
 	local metal = Color3.fromRGB(26, 28, 31)
 	local nose = Color3.fromRGB(237, 237, 230)
-	cylinder(model, "Body", 0.48, 0.11, Vector3.new(0, 0, 0), body)
+	local body = cylinder(model, "Body", 0.48, 0.11, Vector3.new(0, 0, 0), bodyColor)
+	attachTrail(body, trail)
 	local tip = Instance.new("Part")
 	tip.Name = "Nose"
 	tip.Shape = Enum.PartType.Ball

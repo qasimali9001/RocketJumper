@@ -190,12 +190,15 @@ return {
 	Timer = {
 		Position = UDim2.fromScale(0.5, 0.03),
 		TextSize = 36,
+		BestSize = 16,
 		Font = Enum.Font.GothamBold,
 		Color = Color3.fromRGB(255, 255, 255),
+		BestColor = Color3.fromRGB(176, 182, 192),
+		BestImproved = Color3.fromRGB(120, 255, 170),
 	},
 
 	TargetCount = {
-		Position = UDim2.fromScale(0.5, 0.085),
+		Position = UDim2.fromScale(0.5, 0.115),
 		TextSize = 22,
 		HintSize = 14,
 		Font = Enum.Font.GothamBold,
@@ -212,5 +215,30 @@ return {
 		Color = Color3.fromRGB(190, 255, 210),
 		Text = "0.00",
 		Seconds = 2.5,
+	},
+
+	Crosshair = {
+		Enabled = true,
+		Size = 5,
+		Color = Color3.fromRGB(255, 255, 255),
+		Transparency = 0.15,
+	},
+
+	Leaderboard = {
+		Position = UDim2.new(1, -16, 0.18, 0),
+		AnchorPoint = Vector2.new(1, 0),
+		Width = 230,
+		Padding = 10,
+		RowHeight = 18,
+		TitleSize = 16,
+		RowSize = 14,
+		MaxRows = 8,
+		Font = Enum.Font.GothamBold,
+		BodyFont = Enum.Font.Gotham,
+		Text = Color3.fromRGB(245, 245, 245),
+		Muted = Color3.fromRGB(176, 182, 192),
+		You = Color3.fromRGB(120, 255, 170),
+		Background = Color3.fromRGB(16, 18, 22),
+		BackgroundTransparency = 0.28,
 	},
 }

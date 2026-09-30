@@ -17,7 +17,7 @@ end
 
 function MusicController:start()
 	local config = self._config
-	if not config.Enabled or config.Volume <= 0 then
+	if not config.Enabled then
 		return
 	end
 	if config.SoundId == nil or config.SoundId == "" then
@@ -31,6 +31,20 @@ function MusicController:start()
 	sound.Parent = SoundService
 	sound:Play()
 	self._sound = sound
+end
+
+function MusicController:getVolume()
+	return self._config.Volume
+end
+
+function MusicController:setVolume(volume)
+	if typeof(volume) ~= "number" then
+		return
+	end
+	self._config.Volume = math.clamp(volume, 0, 1)
+	if self._sound then
+		self._sound.Volume = self._config.Volume
+	end
 end
 
 function MusicController:destroy()

@@ -9,5 +9,6 @@ return {
 	Tune = { Enum.KeyCode.RightShift },
 	Reset = { Enum.KeyCode.R },
 	Cycle = { Enum.KeyCode.N },
+	Menu = { Enum.KeyCode.M },
 	JumpBuffer = 0.12,
 }

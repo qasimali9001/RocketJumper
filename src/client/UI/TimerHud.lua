@@ -19,6 +19,7 @@ function TimerHud.new(config)
 	local self = Class.instance(TimerHud)
 	self._config = config
 	self._label = nil
+	self._best = nil
 	self._timerStart = nil
 	self._connections = {}
 	return self
@@ -47,8 +48,21 @@ function TimerHud:start()
 	label.Text = formatTime(0)
 	label.Parent = gui
 
+	local best = Instance.new("TextLabel")
+	best.Name = "Best"
+	best.AnchorPoint = Vector2.new(0.5, 0)
+	best.Position = config.Position + UDim2.fromOffset(0, config.TextSize + 2)
+	best.Size = UDim2.fromOffset(220, config.BestSize + 4)
+	best.BackgroundTransparency = 1
+	best.Font = config.Font
+	best.TextSize = config.BestSize
+	best.TextColor3 = config.BestColor
+	best.Text = "BEST --"
+	best.Parent = gui
+
 	gui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
 	self._label = label
+	self._best = best
 
 	table.insert(self._connections, CourseRemotes.course().OnClientEvent:Connect(function(payload)
 		self:_onCourse(payload)
@@ -77,7 +91,7 @@ function TimerHud:_onCourse(payload)
 	if payload.kind == "timer" or payload.kind == "sync" then
 		self._timerStart = payload.timerStart
 		if self._timerStart == nil then
-			self._label.Text = formatTime(0)
+			self._label.Text = formatTime(payload.elapsed or 0)
 		end
 	elseif payload.kind == "reset" then
 		self._timerStart = nil
@@ -86,6 +100,22 @@ function TimerHud:_onCourse(payload)
 		self._timerStart = nil
 		self._label.Text = formatTime(payload.elapsed or 0)
 	end
+	if payload.kind == "board" or payload.kind == "finish" then
+		self:_setBest(payload.personalBest, payload.improved)
+	end
+end
+
+function TimerHud:_setBest(seconds, improved)
+	if self._best == nil then
+		return
+	end
+	if typeof(seconds) ~= "number" then
+		self._best.Text = "BEST --"
+		self._best.TextColor3 = self._config.BestColor
+		return
+	end
+	self._best.Text = "BEST " .. formatTime(seconds)
+	self._best.TextColor3 = improved and self._config.BestImproved or self._config.BestColor
 end
 
 function TimerHud:_tick()

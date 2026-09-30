@@ -14,9 +14,6 @@ return {
 	-- Studs. Added to the self-push only, so the blast is read as lower than
 	-- the impact. 0 is the raw angle. The rocket still hits the crosshair.
 	SelfUpBias = 3,
-	BurstTime = 0.22,
-	BurstColor = Color3.fromRGB(255, 196, 90),
-	ExplosionSoundId = "rbxassetid://269146157",
 
 	Cooldown = 0.7,
 	FireBuffer = 0.12,

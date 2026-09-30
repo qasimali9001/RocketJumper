@@ -11,7 +11,7 @@ local CourseSession = require(script.Parent.Parent.Course.CourseSession)
 local MapCycle = {}
 MapCycle.__index = MapCycle
 
-function MapCycle.new(registry, config, respawnRemote, courseRemote, targetHitRemote, resetRemote, helloRemote, cycleRemote)
+function MapCycle.new(registry, config, respawnRemote, courseRemote, targetHitRemote, resetRemote, helloRemote, cycleRemote, times, selectRemote, pauseRemote)
 	local self = Class.instance(MapCycle)
 	self._registry = registry
 	self._config = config
@@ -21,10 +21,15 @@ function MapCycle.new(registry, config, respawnRemote, courseRemote, targetHitRe
 	self._reset = resetRemote
 	self._hello = helloRemote
 	self._cycle = cycleRemote
+	self._times = times
+	self._select = selectRemote
+	self._pause = pauseRemote
 	self._rows = {}
 	self._index = 1
 	self._session = nil
 	self._connection = nil
+	self._selectConnection = nil
+	self._pauseConnection = nil
 	return self
 end
 
@@ -38,6 +43,17 @@ function MapCycle:start()
 	self._connection = self._cycle.OnServerEvent:Connect(function()
 		self:_advance()
 	end)
+	self._selectConnection = self._select.OnServerEvent:Connect(function(_player, mapId)
+		self:_selectMap(mapId)
+	end)
+	self._pauseConnection = self._pause.OnServerEvent:Connect(function(player, paused)
+		if self._session then
+			self._session:setPaused(player, paused == true)
+		end
+		if paused == true then
+			self:_sendCatalog(player)
+		end
+	end)
 end
 
 function MapCycle:destroy()
@@ -45,10 +61,40 @@ function MapCycle:destroy()
 		self._connection:Disconnect()
 		self._connection = nil
 	end
+	if self._selectConnection then
+		self._selectConnection:Disconnect()
+		self._selectConnection = nil
+	end
+	if self._pauseConnection then
+		self._pauseConnection:Disconnect()
+		self._pauseConnection = nil
+	end
 	if self._session then
 		self._session:destroy()
 		self._session = nil
 	end
+end
+
+function MapCycle:_sendCatalog(player)
+	local times = self._times
+	if times == nil or player.Parent == nil then
+		return
+	end
+	task.spawn(function()
+		local bests = {}
+		for _, row in self._rows do
+			table.insert(bests, {
+				id = row.id,
+				seconds = times:personalSeconds(player, row.id),
+			})
+		end
+		if player.Parent ~= nil then
+			self._course:FireClient(player, {
+				kind = "catalog",
+				bests = bests,
+			})
+		end
+	end)
 end
 
 function MapCycle:_present()
@@ -64,6 +110,19 @@ function MapCycle:_present()
 	end
 	self._index = startIndex
 	return rows
+end
+
+function MapCycle:_selectMap(mapId)
+	if typeof(mapId) ~= "string" then
+		return
+	end
+	for index, row in self._rows do
+		if row.id == mapId and Workspace:FindFirstChild(row.modelName) then
+			self._index = index
+			self:_open()
+			return
+		end
+	end
 end
 
 function MapCycle:_advance()
@@ -88,6 +147,8 @@ function MapCycle:_open()
 	local map = MapLoader.read(model, self._config.Tags)
 	local session = CourseSession.new(map, self._config, self._respawn, self._course, self._targetHit, self._reset, self._hello)
 	session:setMapName(row.displayName)
+	session:setMapId(row.id)
+	session:setTimes(self._times)
 	session:start()
 	session:announce("map")
 	self._session = session

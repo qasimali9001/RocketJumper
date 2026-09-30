@@ -4,7 +4,7 @@ This is the reference for how Rocket Jumper is built. Read it before adding a fe
 
 Source of truth for code is this folder (`src/`), synced into Studio. Maps live in Studio as tagged models. Gameplay numbers live in config modules, not inside controllers.
 
-**Current stage:** Stage 6 is in. `N` cycles `Serpentine` and `Pyramid`. Pyramid is the parts model from `tools/BuildPyramid.lua`: four flat rings, four 45° slopes at 75% scale, eight recessed targets, start on the south apron, finish on top. Stage 7 has started. The first slice is a first-person launcher, a rocket shape instead of the neon ball, and a music player. The Blender source is `export/Weapons.blend`. Mesh and audio upload are still blocked, so the in-game gun and rocket are parts matched to that file, and `AudioConfig.SoundId` stays empty until `TimeAttack1.mp3` can be uploaded.
+**Current stage:** Stage 6 is in. `N` cycles `Serpentine` and `Pyramid`. Pyramid is the parts model from `tools/BuildPyramid.lua`: four flat rings, four 45° slopes at 75% scale, eight recessed targets, start on the south apron, finish on top. Stage 7 feel is in the build: launcher and rocket from `export/Weapons.blend` (parts, because mesh upload is blocked), `TimeAttack1` plus shot and blast cues, a hotter blast with a close-range camera shake, speed field of view, a rocket trail, a target-clear flash, and a muzzle flash. Magnitudes live in `PolishConfig` and `AudioConfig`. `0` or `Enabled = false` turns a cue off. None of it writes velocity. Load opens the level list. `M` pauses a run. `Esc` stays the Roblox menu. The clock stops while either menu is open.
 
 Play it before changing the route. Nudge parts in edit mode. The scripts do not rebuild the corridor.
 
@@ -187,8 +187,11 @@ src/
       CourseConfig.lua             -- timer rules, reset clearance, target tag
       InputConfig.lua              -- keybinds
       CameraConfig.lua             -- first person, mouse lock, hide head
-      HudConfig.lua                -- speed HUD, timer, target count
-      AudioConfig.lua              -- background track volume and id
+      PolishConfig.lua             -- speed FOV, shake, blast look, trail, flashes
+      LeaderboardConfig.lua        -- time store name and board length
+      MenuConfig.lua               -- start screen, pause, level list, and options layout
+      HudConfig.lua                -- speed HUD, timer, target count, reticle, leaderboard
+      AudioConfig.lua              -- music and one-shot cue volumes and ids
       ViewConfig.lua               -- first-person launcher offset and colors
       MapRegistry.lua              -- list of maps
     Types/
@@ -199,6 +202,7 @@ src/
       MapLoader.lua                -- clone model, read tags, return a map object
     Course/
       CourseSession.lua            -- per player: targets cleared, finish gate, timer, reset
+      BestTimes.lua                -- per-map best and the shared fastest-times board
     Player/
       RigGuard.lua                 -- stops a respawn from ragdolling; client still owns velocity
   client/
@@ -206,26 +210,38 @@ src/
     Input/
       InputController.lua          -- actions this frame, including the jump/fire buffer
     Camera/
-      CameraController.lua         -- first person, mouse lock, hide local head
+      CameraController.lua         -- first person, mouse lock, hide local head, speed FOV, blast shake
+      SpeedFeel.lua                -- speed to the curved widen shared by FOV and the streaks
+      SpeedLines.lua               -- edge streaks aimed at the center. Does not write velocity
     Movement/
       MovementController.lua       -- ground, air, gravity, writes velocity
       GroundProbe.lua              -- raycast ground contact
     Rocket/
       RocketController.lua         -- fire, simulate local projectile, apply impulse, report the hit part
-      RocketView.lua               -- rocket shape. Does not change the shot
-      Explosion.lua                -- falloff and impulse from a point. Does not clear targets
+      RocketView.lua               -- rocket shape and trail. Does not change the shot
+      Explosion.lua                -- falloff, impulse, and the blast look. Does not clear targets
     View/
-      LauncherView.lua             -- first-person launcher on the camera. Does not write velocity
+      LauncherView.lua             -- first-person launcher and muzzle flash. Does not write velocity
     Audio/
       MusicController.lua          -- loops the background track
+      SfxController.lua            -- fire, blast, target, and finish cues. Does not write velocity
     Course/
       CourseController.lua         -- reports the hit target, applies reset, sends the reset key
+      TargetFlash.lua              -- flash when a target clears. Does not change the clear
     UI/
       SpeedHud.lua
       AirControlPanel.lua          -- live sliders for air strafe, rocket blast, and look sensitivity
-      TimerHud.lua
+      TimerHud.lua                 -- run clock and personal best
       TargetHud.lua                -- cleared / total
       CourseBanner.lua             -- finish time
+      Crosshair.lua                -- center dot. Does not change the shot
+      LeaderboardHud.lua           -- fastest times on the current map
+      Menu/
+        MenuController.lua         -- start screen, pause, and which page is open
+        MenuChrome.lua             -- menu buttons and stacks
+        LevelSelect.lua            -- card grid for maps already in Workspace
+        LevelPreview.lua           -- live picture of a map on its card
+        OptionsPanel.lua           -- music, effects, and mouse sensitivity
 ```
 
 Server map objects and client controllers talk through a single small remotes module (`src/shared/Net/CourseRemotes.lua`) created in Stage 3. Movement does not have a remote in the solo loop.
@@ -320,23 +336,30 @@ Build a second small map. Register it. A simple cycle or menu picks the active m
 
 ### Stage 7 — Feel polish
 
-In progress. The launcher and the flying rocket are parts matched to `export/Weapons.blend`. `MusicController` loops `AudioConfig.SoundId` and stays silent while that id is empty.
+In the build, waiting on a playtest. The launcher and the flying rocket are parts matched to `export/Weapons.blend`. `MusicController` loops `TimeAttack1`. `SfxController` plays the shot, the blast, a target clear, and the finish.
 
-Still to do, all magnitudes in config, none of it writing velocity: camera FOV kick on large speed gains, brief explosion shake, rocket trail, a stronger explosion, a fire sound, and clearer target-cleared feedback.
+The blast is a hot core, a shock ring, and a short spark burst. Your own blast shakes the camera, stronger when you are close, and the shove is unchanged. Field of view stays near the base, then bends up toward `SpeedForMax` (`Fov.Curve`). Short white streaks sit on the screen edge, each aimed at the center, and slide outward with that same widen. Full stretch is 40 degrees at `SpeedForMax`. Rockets leave a short trail. A cleared target flashes, and the launcher flashes at the muzzle. `PolishConfig` holds those magnitudes. `Fov.MaxBonus` and `Fov.Kick` at `0` leave the view at `Fov.Base`. `Shake.MaxOffset` at `0` leaves the camera still. `Enabled = false` turns off the blast look, the trail, the streaks, or either flash.
 
 **Done when**
 
 - Polish can be turned down to zero from config and the physics from Stage 2 are unchanged.
 - No polish code writes velocity.
 
-### Stage 8 — Save a best time (only after the above is fun)
+### Stage 8 — Save a best time
 
-Per-map best time in a DataStore, shown next to the current timer. Still no lobby. Savestate stays out until a clear is fun to replay.
+In the build. A clear writes your time for that map. A slower clear and a failed run leave the saved time alone. The time sits under the clock as BEST, and the right-hand board lists the fastest clears for the map you are on. Your row is marked. The store is an ordered DataStore, one board per map id, so other players share it once the place can use DataStores. If the store is closed, times last for this server only.
+
+Load opens one screen: a grid of the levels already in Workspace, plus Options. Each card shows that course, a one-line summary, and your best. The first featured row is the large card. The rest pack in beside it, and more levels add cards instead of a new screen. A new level is a registry row: name, summary, and the model. `preview` is a screenshot taken from that level's spawn. The files are in `images/` and copied into the Studio `content/textures/RocketJumper` folder, because cloud upload is still blocked. Empty preview still falls back to a live photograph. The run does not start until a card is picked. During a run, `M` opens pause: Resume, Level Select, and Options. That level list is the same grid. Options is music, effects, and mouse sensitivity. Right Shift stays the tuning panel.
+
+`Esc` stays the Roblox menu. Roblox does not let a game take that key, in Studio or in a published place. Opening it still freezes the body and the clock, the same way our pause does. Resume continues the clock from where it stopped. A failed run still does not save a time. Savestate stays out. A third course waits until this menu has been played.
 
 **Done when**
 
 - Leaving and rejoining keeps the best time for that map.
 - A failed run does not replace it.
+- A faster clear shows on the board for other players in the same place.
+- Load shows the level list, and the clock stays stopped until a level is picked.
+- `M` pauses a run and freezes that clock. `Esc` still opens the Roblox menu.
 
 ---
 

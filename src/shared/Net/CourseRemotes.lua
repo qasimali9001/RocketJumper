@@ -17,7 +17,9 @@ function CourseRemotes.ensure()
 		CourseRemotes._event(net, "TargetHit"),
 		CourseRemotes._event(net, "Reset"),
 		CourseRemotes._event(net, "Hello"),
-		CourseRemotes._event(net, "Cycle")
+		CourseRemotes._event(net, "Cycle"),
+		CourseRemotes._event(net, "Select"),
+		CourseRemotes._event(net, "Pause")
 end
 
 function CourseRemotes._event(net, name)
@@ -58,6 +60,14 @@ end
 
 function CourseRemotes.cycle()
 	return CourseRemotes._wait("Cycle")
+end
+
+function CourseRemotes.select()
+	return CourseRemotes._wait("Select")
+end
+
+function CourseRemotes.pause()
+	return CourseRemotes._wait("Pause")
 end
 
 return CourseRemotes
